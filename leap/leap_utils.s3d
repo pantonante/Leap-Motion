@@ -1,0 +1,109 @@
+#ifndef __LEAP_UTILS__
+#define __LEAP_UTILS__
+
+//function Matrix4ToMatrix3(m) {
+//	return [
+//		m[0], m[1], m[2], /* m[3] */
+//		m[4], m[5], m[6], /* m[7] */
+//		m[8], m[9], m[10] /* m[11] */
+//		/* m[12], m[13], m[14], m[15]  */
+//	];
+//}
+
+/* It returns the angle (in degrees) between 3D vectors v1 and v2. */
+function computeDotProduct(v1, v2) {
+	v1 = norm(v1);
+	v2 = norm(v2);
+	var a = acos((v1[0] * v2[0]) + (v1[1] * v2[1]) + (v1[2] * v2[2]));
+	return (a * 360.0 / (2.0 * PI));
+}
+
+function leapToAvatar(mat) {
+	var t = [0, 0, -1, 0, -1, 0, -1, 0, 0];
+	//return MatrixMultiplyMatrix_3(t, MatrixMultiplyMatrix_3(mat, MatrixInverse_3(t)));
+	return MatrixMultiplyMatrix_3(t, MatrixMultiplyMatrix_3(mat, t));
+}
+
+function leapHMDToXVR(mat) {
+	var t = [-1, 0, 0, 
+		0, 0, -1, 
+		0, -1, 0 ];
+	return MatrixMultiplyMatrix_3(t, MatrixMultiplyMatrix_3(mat, MatrixInverse_3(t)));
+	//return MatrixMultiplyMatrix_3(t, MatrixMultiplyMatrix_3(mat, t));
+}
+
+#ifndef __GUI_UTILS__
+
+function rad2deg(rad) {
+	return rad * 180 / PI;
+}
+
+function QuaternionToAxisDegrees(q) {
+	/* funzione necessaria perché in caso di rotazioni con angolo 0, 
+	 * QuaternionToAxisAngle non gestisce correttamente il caso del quaternione (0,0,0,1)
+	 * e dunque controllo: se il valore dell'angolo al quadrato è molto vicino a 1,
+	 * vuol dire che sono in quel caso e non entro neanche nella funzione di XVR,
+	 * restituendo direttamente un AxisAngle corrispondente a [0,0,1, 0]
+	 * ovvero una rotazione di 0 gradi sull'asse Z. 
+	 */
+	if (q[3]*q[3] >= 1.0 - 1e-6) {
+		return [0, 0, 1, 0];
+	}
+	var rv = QuaternionToAxisAngle(q); // rotation_vector: [x,y,z,alpha IN RADIANTI]
+	rv[3] = rad2deg(rv[3]);
+	return rv;
+}
+
+function Matrix3ToAxisDegrees(m) {
+	return QuaternionToAxisDegrees(Matrix3ToQuaternion(m));
+}
+
+#endif// __GUI_UTILS__
+
+/* not to be used, just an example */
+function JointSetRotationABS(avatar, joint, mat){
+	var parent = avatar.JointGetParent(joint);
+	var prev_rot = avatar.JointGetRotationMatrixABS(parent);
+	var prev_basis = Matrix4ToMatrix3(prev_rot);
+	var inv_prev_basis = MatrixTranspose_3(prev_basis);
+	var rm = MatrixMultiplyMatrix_3(inv_prev_basis, mat);
+	var rv = Matrix3ToAxisDegrees(rm);
+	avatar.JointSetRotation(joint, rv[3], rv[0],rv[1],rv[2]);
+}
+
+// Debugging helper
+function DrawCoord(pos, basis)
+{
+	/* let's not mess up current OpenGL status */
+	glPushAttrib(GL_LIGHTING_BIT | GL_LINE_BIT | GL_CURRENT_BIT);
+	
+	glLineWidth(1);
+	glDisable(GL_LIGHTING);
+
+	// X axis
+	glColor([1,0,0]);
+	glBegin(GL_LINES);
+		glVertex(pos);
+		glVertex(pos + [basis[0], basis[1], basis[2]]*0.05);
+	glEnd();
+
+	// Y axis
+	glColor([0,1,0]);
+	glBegin(GL_LINES);
+		glVertex(pos);
+		glVertex(pos + [basis[3], basis[4], basis[5]]*0.05);
+	glEnd();
+
+	// Z axis
+	glColor([0,0,1]);
+	glBegin(GL_LINES);
+		glVertex(pos);
+		glVertex(pos + [basis[6], basis[7], basis[8]]*0.05);
+	glEnd();
+
+	/* polite restoration of previous OpenGL status */
+	glPopAttrib();
+}
+
+
+#endif __LEAP_UTILS__

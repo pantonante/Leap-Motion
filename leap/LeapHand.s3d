@@ -1,0 +1,376 @@
+#ifndef LEAP_HAND
+#define LEAP_HAND
+
+#include "LeapFileStream.s3d"
+#include "LeapFinger.s3d"
+#include "leap_utils.s3d"
+
+
+class LeapHand {
+	var mId;
+	var mPos;
+	var mPitch;
+	var mYaw;
+	var mRoll;
+	
+	var mPalm;
+	var mPalmWidth;
+	var mPalmNormal;
+	var mDirection;
+	var mBasis;
+	var mConfidence;
+	
+	var mFingers;
+	var mSide; // left-right hand
+	
+	var mResetted;
+	
+	resetHand();
+	isResetted();
+	draw(color);
+	fromJson(stream, obj);
+
+	isValid(); // TODO
+	isLeft();
+	isRight();
+	getSide();
+	getConfidence();
+	getId();
+	getPos();
+	getPalmNormal();
+	getXVRPos();
+	getHMDPos();
+	getPalmDirection();
+	getYaw();
+	getPitch();
+	getRoll();
+	getBasis();
+	getFingerByIndex(i);
+	getFingerArray();
+	getThumb();
+	getIndex();
+	getMiddle();
+	getRing();
+	getPinky();
+	
+	getPalmWidth();
+	
+	transformLeftToRightRotationMatrix();
+	
+	convertToWorldCoordinate(cameraToWorldMatrix);
+	
+	convertRegularToWorldCoordinate(cameraToWorldMatrix);
+
+};
+
+function LeapHand::LeapHand(){
+	this.mFingers = array(0);
+	
+	aadd(this.mFingers, LeapFinger());
+	aadd(this.mFingers, LeapFinger());
+	aadd(this.mFingers, LeapFinger());
+	aadd(this.mFingers, LeapFinger());
+	aadd(this.mFingers, LeapFinger());
+	this.mResetted = true;
+}
+
+function LeapHand::resetHand(){
+	this.mResetted = true;
+	this.mId = void;
+}
+
+function LeapHand::isValid(){
+	return !this.mResetted;
+}
+
+function LeapHand::isResetted(){
+	return this.mResetted;
+}
+
+function LeapHand::draw(color){
+	if(this.mResetted)
+		return;
+		
+	this.mPalm.setPosition(this.mPos);
+	this.mPalm.draw();
+	for(var i = 0; i < len(this.mFingers); i++){
+		this.mFingers[i].draw(color);
+	}
+}
+
+function LeapHand::fromJson(stream, hObj){
+	this.mResetted = true;
+	if(hObj == 0)
+		return;
+	
+	var qz = 1000.0;
+	
+	this.mId = stream.getInt(hObj, "id");
+	var palm = stream.getObj(hObj, "palm");
+	var x = stream.getDouble(palm, "x") / qz;
+	var y = stream.getDouble(palm, "y") / qz;
+	var z = stream.getDouble(palm, "z") / qz;
+	
+	var normal = stream.getObj(hObj, "normal");
+	var n1 = stream.getDouble(normal, "x");
+	var n2 = stream.getDouble(normal, "y");
+	var n3 = stream.getDouble(normal, "z");
+	
+	var dir = stream.getObj(hObj, "direction");
+	var d1 = stream.getDouble(dir, "x");
+	var d2 = stream.getDouble(dir, "y");
+	var d3 = stream.getDouble(dir, "z");
+	
+	this.mRoll = stream.getDouble(hObj, "roll");
+	this.mPitch = stream.getDouble(hObj, "pitch");
+	this.mYaw = stream.getDouble(hObj, "yaw");
+	this.mSide = stream.getString(hObj, "type");
+	
+	this.mPos = [x, y, z];
+
+	this.mPalmNormal = [n1, n2, n3];
+	this.mDirection = [d1, d3, d2];		// TO BE FIXED !!!
+	
+	this.mBasis = Vector(0);
+	var xBasis = stream.getObj(hObj, "xBasis");
+	var x1 = stream.getDouble(xBasis, "x");
+	var y1 = stream.getDouble(xBasis, "y");
+	var z1 = stream.getDouble(xBasis, "z");
+	
+	var yBasis = stream.getObj(hObj, "yBasis");
+	var x2 = stream.getDouble(yBasis, "x");
+	var y2 = stream.getDouble(yBasis, "y");
+	var z2 = stream.getDouble(yBasis, "z");
+	
+	var zBasis = stream.getObj(hObj, "zBasis");
+	var x3 = stream.getDouble(zBasis, "x");
+	var y3 = stream.getDouble(zBasis, "y");
+	var z3 = stream.getDouble(zBasis, "z");
+
+	if (this.mSide == "l") {
+		/* trasposta perché XVR rappresenta le matrici in
+		 * formato colum-major; xBasis cambiato di verso perché
+		 * Leap usa matrici left-handed per la mano sinistra */
+		this.mBasis = [
+			-x1, -y1, -z1,
+			x2, y2, z2,
+			x3, y3, z3
+		];
+	} else {
+		/* trasposta perché XVR rappresenta le
+		 * matrici in formato colum-major */
+		this.mBasis = [
+			x1, y1, z1,
+			x2, y2, z2,
+			x3, y3, z3
+		];
+	}
+	
+	this.mConfidence = stream.getDouble(hObj, "confidence");
+		
+	var fs = stream.getArray(hObj, "fingers");
+	var fsCount = stream.sizeArray(fs);
+	
+	
+	for(var i = 0; i < fsCount; i++){
+		var f = stream.elementAt(fs, i);
+		this.mFingers[i].fromJson(stream, f, this.mSide);
+	}
+	
+	// prova
+//	outputln("* TEST *");
+//	var d0 = norm(this.mFingers[0].mBones[1].getDir()); // dito POLLICE, bone #1
+//	var d1 = norm(this.mFingers[1].mBones[1].getDir()); // dito INDICE, bone #1
+//	var a = acos((d0[0] * d1[0]) + (d0[1] * d1[1]) + (d0[2] * d1[2]));
+//	outputln (a * 360.0 / (2.0 * 3.14159));
+	// fine prova
+	
+	this.mPalmWidth = stream.getDouble(hObj, "palmWidth") / 1000.0;
+	 
+//	var m = CVmNewMesh(VRP_BOX, 1, [0.0,0.0,0.0], [5.0,1.0,5.0]);
+//	var m = CVmNewMesh(VRP_CIRCLE, 1, this.mPalmWidth, 1);
+	var m = CVmNewMesh(VRP_BOX, 1, [0.0,0.0,0.0], [this.mPalmWidth, this.mPalmWidth, 0.01]);
+//	var m = CVmNewMesh(VRP_BOX);
+//	m.scale(this.mPalmWidth, 1, this.mPalmWidth/3.0);
+	m.ModulateMaterials(0.0,0.0, 1.0);
+	m.CenterBoundingBox();
+	this.mPalm = cvmObj(m);
+
+//	this.mPalm.setRotation(this.mYaw, [0,-1,0]);
+//	this.mPalm.rotate(this.mPitch, [1,0,0]);
+//	this.mPalm.rotate(this.mRoll, [0,0,1]);
+	
+	
+//	this.mPalm.setPosition(this.mPos);
+//	this.mPalm.translate(0.0,0.0,this.mPalmWidth/2.0);
+	
+	this.mResetted = false;
+}
+
+function LeapHand::getId(){
+	return (this.mId);	
+}
+
+function LeapHand::isLeft(){
+	return (this.mSide == "l");
+}
+
+function LeapHand::isRight(){
+	return (this.mSide == "r");
+}
+
+function LeapHand::getSide(){
+	return (this.mSide);
+}
+
+function LeapHand::getFingerByIndex(i){
+	if ((i > -1) && (i < 5))
+		return this.mFingers[i];
+	else
+		return void;
+}
+
+function LeapHand::getFingerArray(){
+	return this.mFingers;
+}
+
+function LeapHand::getThumb(){
+	return this.mFingers[0];
+}
+
+function LeapHand::getIndex(){ // this is NOT a numerical index, but the 2nd finger of a hand.
+	return this.mFingers[1];
+}
+
+function LeapHand::getMiddle(){
+	return this.mFingers[2];
+}
+
+function LeapHand::getRing(){
+	return this.mFingers[3];
+}
+
+function LeapHand::getPinky(){
+	return mFingers[4];
+}
+
+function LeapHand::getXVRPos(){
+	var a = vector(3);
+//	a[0] = -(this.mPos.x);
+//	a[1] = (this.mPos.y);
+//	a[2] = -(this.mPos.z);
+//	
+	a[0] = (this.mPos.x);
+	a[1] = (this.mPos.y);
+	a[2] = (this.mPos.z);
+	return a;
+}
+function LeapHand::getHMDpos(){
+	//outputln(this.mPos);
+	var a = vector(3);
+	a[0] = -this.mPos.x;
+	a[1] = -this.mPos.z;
+	a[2] = -this.mPos.y;
+	return a;
+}
+function LeapHand::getConfidence(){
+	return this.mConfidence;
+}
+
+function LeapHand::getPos(){
+	return this.mPos;
+}
+
+function LeapHand::getPalmNormal(){
+	return this.mPalmNormal;
+}
+
+function LeapHand::getYaw(){
+	return this.mYaw;
+}
+
+function LeapHand::getPitch(){
+	return this.mPitch;
+}
+
+function LeapHand::getRoll(){
+	return this.mRoll;
+}
+
+function LeapHand::getBasis(){
+	return this.mBasis;
+}
+
+function LeapHand::getPalmWidth(){
+	return this.mPalmWidth;
+}
+
+function LeapHand::getPalmDirection(){
+	return this.mDirection;
+}
+
+function LeapHand::convertToWorldCoordinate(cameraToWorldMatrix){
+	var p = this.getHMDPos();
+	
+	var deltapos = MatrixMultiplyVector_4(cameraToWorldMatrix, [p[0], p[1], p[2], 1.0]);
+	this.mPos = [deltapos.x, deltapos.y, deltapos.z];
+	
+	
+	var m_ = leapHMDToXVR(this.mBasis);
+	var m = [
+		m_[0], m_[1], m_[2], 0,
+		m_[3], m_[4], m_[5], 0,
+		m_[6], m_[7], m_[8], 0,
+		0, 0, 0, 1  
+	];
+	
+	var onlyRot = [
+		cameraToWorldMatrix[0], cameraToWorldMatrix[1], cameraToWorldMatrix[2], 0,
+		cameraToWorldMatrix[4], cameraToWorldMatrix[5], cameraToWorldMatrix[6], 0,
+		cameraToWorldMatrix[8], cameraToWorldMatrix[9], cameraToWorldMatrix[10], 0,
+		0, 0, 0, 1  
+	]; 
+	
+	var mat = MatrixMultiplyMatrix_4(onlyRot, m);
+	this.mPalm.setRotationMatrix(mat);
+	this.mPalmNormal = [mat[8], mat[9], mat[10]];
+
+	for(var i = 0; i < len(this.mFingers); i++){
+		this.mFingers[i].convertToWorldCoordinate(cameraToWorldMatrix);
+	}
+}
+
+function LeapHand::convertRegularToWorldCoordinate(cameraToWorldMatrix){
+	var p = this.getPos();
+	
+	var deltapos = MatrixMultiplyVector_4(cameraToWorldMatrix, [p[0], p[1], p[2], 1.0]);
+	//trace(deltapos);
+	this.mPos = [deltapos.x, deltapos.y, deltapos.z];
+	
+	var m_ = (this.mBasis);
+	var m = [
+		m_[0], m_[1], m_[2], 0,
+		m_[3], m_[4], m_[5], 0,
+		m_[6], m_[7], m_[8], 0,
+		0, 0, 0, 1  
+	];
+	
+	var onlyRot = [
+		cameraToWorldMatrix[0], cameraToWorldMatrix[1], cameraToWorldMatrix[2], 0,
+		cameraToWorldMatrix[4], cameraToWorldMatrix[5], cameraToWorldMatrix[6], 0,
+		cameraToWorldMatrix[8], cameraToWorldMatrix[9], cameraToWorldMatrix[10], 0,
+		0, 0, 0, 1  
+	]; 
+		
+	var mat = MatrixMultiplyMatrix_4(onlyRot, m);
+	this.mPalm.setRotationMatrix(mat);
+//	this.mPalmNormal = [mat[8], mat[9], mat[10]];
+	this.mPalmNormal = -[mat[4], mat[5], mat[6]];
+
+	for(var i = 0; i < len(this.mFingers); i++){
+		this.mFingers[i].convertRegularToWorldCoordinate(cameraToWorldMatrix);
+	}
+}
+
+
+#endif

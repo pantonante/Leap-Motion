@@ -1,0 +1,24 @@
+#ifndef LEAP_GESTURE_SCREENTAP
+#define LEAP_GESTURE_SCREENTAP
+
+class LeapGestureScreenTap {
+	var mEventId;
+	var mEventName;
+	var mLastScreenTapPosition;
+	
+	// functions
+	getId();
+	
+};
+
+function LeapGestureScreenTap::LeapGestureScreenTap(e, frame) {
+	this.mEventId = e;
+	this.mEventName = "ScreenTap";
+	this.mLastScreenTapPosition = frame.getLastScreenTapPosition();
+}
+
+function LeapGestureScreenTap::getId() {
+	return this.mEventId;
+}
+
+#endif

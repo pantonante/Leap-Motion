@@ -1,0 +1,62 @@
+#ifndef LEAP_GESTURE_SWIPE
+#define LEAP_GESTURE_SWIPE
+
+class LeapGestureSwipe {
+	var mEventId;
+	var mEventName;
+	var mLastSwipePosition;
+	var mLastSwipeStart;
+	var mLastSwipeDirection;
+	var mLastSwipeSpeed;
+	var mLastSwipingFinger;
+	var mEnded;
+	var mCounter;
+	
+	// functions
+	getId();
+	getCounter();
+	end();
+	hasEnded();
+	update(frame);
+};
+
+function LeapGestureSwipe::LeapGestureSwipe(e, frame) {
+	this.mEventId = e;
+	this.mEventName = "Swipe";
+	this.mLastSwipePosition = frame.getLastSwipePosition();
+	this.mLastSwipeStart = frame.getLastSwipeStart();
+	this.mLastSwipeDirection = frame.getLastSwipeDirection();
+	this.mLastSwipeSpeed = frame.getLastSwipeSpeed();
+	this.mLastSwipingFinger = frame.getLastSwipingFinger();
+	this.mEnded = false;
+	this.mCounter = 0;
+}
+
+function LeapGestureSwipe::getId() {
+	return this.mEventId;
+}
+
+function LeapGestureSwipe::getCounter() {
+	return this.mCounter;
+}
+
+function LeapGestureSwipe::end() {
+	this.mEnded = true;
+	//outputln("INCREMENTO IL COUNTER: ", mCounter + 1);
+	this.mCounter++;
+}
+
+function LeapGestureSwipe::hasEnded() {
+	return this.mEnded;
+}
+
+function LeapGestureSwipe::update(frame) {
+	this.mLastSwipePosition = frame.getLastSwipePosition();
+	this.mLastSwipeStart = frame.getLastSwipeStart();
+	this.mLastSwipeDirection = frame.getLastSwipeDirection();
+	this.mLastSwipeSpeed = frame.getLastSwipeSpeed();
+	this.mLastSwipingFinger = frame.getLastSwipingFinger();	
+	this.mEnded = false;
+}
+
+#endif

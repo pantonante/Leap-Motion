@@ -1,0 +1,28 @@
+#ifndef LEAP_GESTURE_KEYTAP
+#define LEAP_GESTURE_KEYTAP
+
+class LeapGestureKeyTap {
+	var mEventId;
+	var mEventName;
+	var mTapPosition;
+	
+	// functions
+	getId();
+	getTapPosition();	
+};
+
+function LeapGestureKeyTap::LeapGestureKeyTap(e, frame) {
+	this.mEventId = e;
+	this.mEventName = "KeyTap";
+	this.mTapPosition = frame.getLastKeyTapPosition();
+}
+
+function LeapGestureKeyTap::getId() {
+	return this.mEventId;
+}
+
+function LeapGestureKeyTap::getTapPosition() {
+	return this.mTapPosition();
+}
+
+#endif

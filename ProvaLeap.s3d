@@ -1,0 +1,287 @@
+extern function Matrix4ToMatrix3;
+extern function defaultDir;
+
+#include <Script3d.h>
+#include <Camera.s3d.h>
+#include "Utils.s3d"
+
+#include "leap/leap_utils.s3d"
+#include "leap/AvatarHand.s3d"
+#include "leap/leap.s3d"
+#include "leap/LeapHand.s3d"
+#include "leap/LeapFinger.s3d"
+#include "leap/LeapBone.s3d"
+
+#define isHMD false
+#define heightThreshold 0.2
+
+#define CUBESIZE 0.08
+#define GRAB_THRESHOLD 0.05
+
+/* Set global scene parameters */
+SET SCENE_FOV  = 60;
+SET SCENE_NEAR = 0.1;
+SET SCENE_FAR  = 5;
+
+/* Camera globals */
+var CamPos = [0.0, 1.0, 1.0]; 	// camera position
+
+/* Light globals */
+var Light0;
+var PosL = [0.0, 10.0, 0.1];
+
+/* Function declarations */
+function CameraMoveMouse();
+function DrawGrid(col, size);
+function AngleBetweenVectors(v1, v2);
+function findCube(p1,p2);
+
+var myAvatar;
+var lp, frame;
+
+var greenMaterial, redMaterial, blueMaterial;
+var cubeMeshes, cubes;
+
+var R_oldPalmNorm, R_hasGrab, R_yaw, R_pitch, R_roll;
+var L_oldPalmNorm, L_hasGrab, L_yaw;
+var R_cubeIndex, L_cubeIndex;
+
+function OnInit(param) {
+	SetTimeStep(20);
+	SetLocalDir();
+	SetClearColor(0.0, 0.0, 0.0);
+	
+	/* initialize camera */
+	CameraGetCurrent().SetPosition(CamPos);
+	CameraGetCurrent().SetTarget(0, 0.25, 0);
+	CameraGetCurrent().Free();
+	/* initialize light */
+	Light0 = CVmLight();
+	Light0.SetPosition(PosL);
+	Light0.SetDiffuse(1, 1, 1);
+	Light0.Enable();
+	
+	myAvatar = AvatarHand(isHMD, heightThreshold);
+	myAvatar.setHandColor(1,0.86,0.94,0);
+	lp = Leap(null, true);
+	
+	/* Materials */
+	greenMaterial = CVmMaterial();
+	greenMaterial.Ambient = [0,1,0,0.5];
+	greenMaterial.Diffuse = [0,1,0,0.5];
+	greenMaterial.Emission = [0,0,0,0];
+	redMaterial = CVmMaterial();
+	redMaterial.Ambient = [1,0,0,0.5];
+	redMaterial.Diffuse = [1,0,0,1];
+	redMaterial.Emission = [0,0,0,0.2];
+	blueMaterial = CVmMaterial();
+	blueMaterial.Ambient = [0,0,1,0.5];
+	blueMaterial.Diffuse = [0,0,1,0.5];
+	blueMaterial.Emission = [0,0,0,0];
+	
+	/* Cubes	 */
+	cubeMeshes = array(3);
+	cubes = array(3);
+	cubeMeshes[0] = CVmNewMesh(VRP_BOX);
+	cubeMeshes[0].CenterBoundingBox(); 
+	cubes[0] = CVmObj(cubeMeshes[0]);
+	cubes[0].setPosition(0,0.25,0.0);
+	cubes[0].setScale(CUBESIZE);
+	cubes[0].forceMaterial(greenMaterial);
+	cubes[0].linkToMesh(cubeMeshes[0]);
+	
+	cubeMeshes[1] = CVmNewMesh(VRP_BOX);
+	cubeMeshes[1].CenterBoundingBox(); 
+	cubes[1] = CVmObj(cubeMeshes[1]);
+	cubes[1].setPosition(0.15,0.25,0.0);
+	cubes[1].setScale(CUBESIZE);
+	cubes[1].forceMaterial(redMaterial);
+	cubes[1].linkToMesh(cubeMeshes[1]);
+	
+	cubeMeshes[2] = CVmNewMesh(VRP_BOX);
+	cubeMeshes[2].CenterBoundingBox(); 
+	cubes[2] = CVmObj(cubeMeshes[2]);
+	cubes[2].setPosition(-0.15,0.25,0.0);
+	cubes[2].setScale(CUBESIZE);
+	cubes[2].forceMaterial(blueMaterial);
+	cubes[2].linkToMesh(cubeMeshes[2]);
+
+	R_hasGrab = 0;
+	L_hasGrab = 0;
+}
+
+function OnDownload() {
+	
+}
+
+function OnTimer() {
+	frame = lp.nextFrameFromStream();
+	
+	var R_fingers_position_delta, R_fingers_dist;
+	var L_fingers_position_delta, L_fingers_dist;
+	
+	// Updating from leap frame
+	if(!frame.isEmpty()){
+		var hasGrab=0;
+		myAvatar.updateJoint(frame);
+		
+		/* Cube grabbing */
+		if(frame.hasRight()){
+			R_fingers_position_delta = myAvatar.getJointPos(R_THUMB_OUT) - myAvatar.getJointPos(R_INDEX_OUT);
+			R_fingers_dist = sqrt(R_fingers_position_delta.x^2+R_fingers_position_delta.y^2+R_fingers_position_delta.z^2);
+			if(R_fingers_dist <= GRAB_THRESHOLD && R_hasGrab==1){
+				//Traslation
+				cubes[R_cubeIndex].setPosition((myAvatar.getJointPos(R_INDEX_OUT)+myAvatar.getJointPos(R_THUMB_OUT))/2);
+				//Rotation
+				//var palmNorm = frame.getRight().getIndex().getLastBone().getDir();
+				var yaw = frame.getRight().getYaw();
+				var roll = frame.getRight().getRoll();
+				var pitch = frame.getRight().getPitch();
+				var palmNorm = frame.getRight().getPalmNormal();
+				var dir = frame.getRight().getPalmDirection();
+				var axis = dir^palmNorm;
+				//cubes[R_cubeIndex].rotateABS(angle, axis);
+				cubes[R_cubeIndex].rotateABS(yaw-R_yaw,palmNorm);
+				cubes[R_cubeIndex].rotateABS(pitch-R_pitch,axis);
+				cubes[R_cubeIndex].rotateABS(roll-R_roll,dir);
+				//R_oldPalmNorm = palmNorm;
+				R_yaw = yaw;
+				R_pitch = pitch;
+				R_roll = roll;
+			}
+			else if(R_fingers_dist <= GRAB_THRESHOLD){
+				var c = findCube(myAvatar.getJointPos(R_THUMB_OUT),myAvatar.getJointPos(R_INDEX_OUT));
+				if(c==-1){
+					R_hasGrab=0;
+				}else{
+					R_hasGrab=1;
+					//R_oldPalmNorm = frame.getRight().getPalmNormal();
+					R_yaw = frame.getRight().getYaw();
+					R_pitch = frame.getRight().getPitch();
+					R_roll = frame.getRight().getRoll();
+					R_cubeIndex = c;
+				}
+			}
+			else{
+				R_hasGrab=0;
+			}
+		}
+		
+		if(frame.hasLeft()){
+			L_fingers_position_delta = myAvatar.getJointPos(L_THUMB_OUT) - myAvatar.getJointPos(L_INDEX_OUT);
+			L_fingers_dist = sqrt(L_fingers_position_delta.x^2+L_fingers_position_delta.y^2+L_fingers_position_delta.z^2);
+			if(L_fingers_dist <= GRAB_THRESHOLD && L_hasGrab==1){
+				//Traslation
+				cubes[L_cubeIndex].setPosition((myAvatar.getJointPos(L_INDEX_OUT)+myAvatar.getJointPos(L_THUMB_OUT))/2);
+				//Rotation
+				var palmNorm = frame.getLeft().getPalmNormal();
+				var yaw = frame.getLeft().getYaw();
+				var angle = AngleBetweenVectors(palmNorm, L_oldPalmNorm);
+				var axis = L_oldPalmNorm^palmNorm;
+				cubes[L_cubeIndex].rotateABS(angle, axis);
+				cubes[L_cubeIndex].rotateABS(yaw-L_yaw,palmNorm);
+				L_oldPalmNorm = palmNorm;
+				L_yaw = yaw;
+			}
+			else if(L_fingers_dist <= GRAB_THRESHOLD){
+				var c = findCube(myAvatar.getJointPos(L_THUMB_OUT),myAvatar.getJointPos(L_INDEX_OUT));
+				if(c==-1){
+					L_hasGrab=0;
+				}else{
+					L_hasGrab=1;
+					L_oldPalmNorm = frame.getLeft().getPalmNormal();
+					L_yaw = frame.getLeft().getYaw();
+					L_cubeIndex = c;
+				}
+			}
+			else{
+				L_hasGrab=0;
+			}
+		}
+	}
+}
+
+function OnEvent() {
+	
+}
+
+function OnError() {
+	
+}
+
+function OnExit()
+{
+	if(lp!=void){
+		lp.close();
+	}
+}
+
+function OnFrame() {	
+	SceneBegin(VR_SHOW_STATS);
+		DrawGrid([0.5, 0.5, 0.5], 10);
+		if(!frame.isEmpty()){
+			myAvatar.draw();
+		}
+	
+		for(var i=0;i<3;i++)
+			cubes[i].draw(VR_AXIS);
+	SceneEnd();
+	
+	CameraMoveMouse();
+}
+
+function DrawGrid(col, size)
+{
+	/* let's not mess up current OpenGL status */
+	glPushAttrib(GL_LIGHTING_BIT | GL_LINE_BIT | GL_CURRENT_BIT);
+	
+	glLineWidth(1);
+	glDisable(GL_LIGHTING);
+	glColor(col);
+	var max = size / 2.0;
+	var min = -max;	
+	var step = size / 10.0;
+	
+	glBegin(GL_LINES);
+		for (var i = min; i <= max; i += step)
+		{
+			glVertex(i, 0, max);
+			glVertex(i, 0, min);
+			
+			glVertex(max, 0, i);
+			glVertex(min, 0, i);
+		}
+	glEnd();
+	
+	/* polite restoration of previous OpenGL status */
+	glPopAttrib();
+}
+
+// Camera manager (using mouse)
+function CameraMoveMouse()
+{	
+	CameraMoveMouse_MBL_LC();
+}
+
+function AngleBetweenVectors(v1, v2) {
+	v1 = norm(v1);
+	v2 = norm(v2);
+	var a = acos((v1[0] * v2[0]) + (v1[1] * v2[1]) + (v1[2] * v2[2]));
+	return (a * 180.0 / 3.14159);	
+}
+
+function findCube(p1,p2){
+	var res=-1;
+	var m = p1;
+	for(var i=0; i<3; i++){
+		if((cubes[i].iscolliding(p1,p2)==true)){
+			res=i;
+			break;
+		}
+		else if(cubes[i].Inspect(m.x,m.y,m.z)!=-1){
+			res=i;
+			break;
+		}
+	}
+	return res;
+}

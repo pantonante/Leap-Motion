@@ -1,0 +1,162 @@
+class RemoteHandAvatar {
+	var mAvatar;
+	var mAvatarId; // Vettore con le definizioni degli id dei vari angoli ai giunti
+	var mat;
+	var hmd;
+	//var hand_joint_ids;
+	
+	setPalmsInitialRotations();
+	setPalmsInitialRotationsHMD();
+	setPalmsInitialRotationsRegular();
+	updateJoints(pos, rot);
+	draw(p);
+	setHandColor(r,g,b,a);
+};
+
+function RemoteHandAvatar::RemoteHandAvatar(isHMD){
+	mAvatar = CVmAvatar("provamani.aam");
+	//mAvatar.Normalize(100);
+			
+	mAvatarId = array(JOINT_COUNT); // Vettore con le definizioni degli id dei vari angoli ai giunti
+	
+	mAvatarId[R_ELBOW]			= mAvatar.findByName("Bip01 R Forearm");
+	
+	mAvatarId[R_WRIST]			= mAvatar.findByName("Bip01 R Hand");				
+	mAvatarId[R_THUMB_BASE]		= mAvatar.findByName("Bip01 R Finger0");
+	mAvatarId[R_THUMB_IN]		= mAvatar.findByName("Bip01 R Finger01");
+	mAvatarId[R_THUMB_MID]		= mAvatar.findByName("Bip01 R Finger02");			
+	mAvatarId[R_THUMB_OUT]		= mAvatar.findByName("Bip01 R Finger0Nub");					
+
+	mAvatarId[R_INDEX_BASE]		= mAvatar.findByName("Bip01 R Finger1");			
+	mAvatarId[R_INDEX_IN]		= mAvatar.findByName("Bip01 R Finger11");			
+	mAvatarId[R_INDEX_MID]		= mAvatar.findByName("Bip01 R Finger12");			
+	mAvatarId[R_INDEX_OUT]		= mAvatar.findByName("Bip01 R Finger1Nub");			
+
+	mAvatarId[R_MIDDLE_BASE]	= mAvatar.findByName("Bip01 R Finger2");		
+	mAvatarId[R_MIDDLE_IN]		= mAvatar.findByName("Bip01 R Finger21");			
+	mAvatarId[R_MIDDLE_MID]		= mAvatar.findByName("Bip01 R Finger22");			
+	mAvatarId[R_MIDDLE_OUT]		= mAvatar.findByName("Bip01 R Finger2Nub");			
+
+	mAvatarId[R_RING_BASE]		= mAvatar.findByName("Bip01 R Finger3");			
+	mAvatarId[R_RING_IN]		= mAvatar.findByName("Bip01 R Finger31");			
+	mAvatarId[R_RING_MID]		= mAvatar.findByName("Bip01 R Finger32");			
+	mAvatarId[R_RING_OUT]		= mAvatar.findByName("Bip01 R Finger3Nub");			
+
+	mAvatarId[R_PINKY_BASE]		= mAvatar.findByName("Bip01 R Finger4");			
+	mAvatarId[R_PINKY_IN]		= mAvatar.findByName("Bip01 R Finger41");			
+	mAvatarId[R_PINKY_MID]		= mAvatar.findByName("Bip01 R Finger42");			
+	mAvatarId[R_PINKY_OUT]		= mAvatar.findByName("Bip01 R Finger4Nub");	
+	
+	mAvatarId[L_ELBOW]			= mAvatar.findByName("Bip01 L Forearm");
+
+	mAvatarId[L_WRIST]			= mAvatar.findByName("Bip01 L Hand");				
+	mAvatarId[L_THUMB_BASE]		= mAvatar.findByName("Bip01 L Finger0");
+	mAvatarId[L_THUMB_IN]		= mAvatar.findByName("Bip01 L Finger01");
+	mAvatarId[L_THUMB_MID]		= mAvatar.findByName("Bip01 L Finger02");			
+	mAvatarId[L_THUMB_OUT]		= mAvatar.findByName("Bip01 L Finger0Nub");					
+
+	mAvatarId[L_INDEX_BASE]		= mAvatar.findByName("Bip01 L Finger1");			
+	mAvatarId[L_INDEX_IN]		= mAvatar.findByName("Bip01 L Finger11");			
+	mAvatarId[L_INDEX_MID]		= mAvatar.findByName("Bip01 L Finger12");			
+	mAvatarId[L_INDEX_OUT]		= mAvatar.findByName("Bip01 L Finger1Nub");			
+
+	mAvatarId[L_MIDDLE_BASE]	= mAvatar.findByName("Bip01 L Finger2");		
+	mAvatarId[L_MIDDLE_IN]		= mAvatar.findByName("Bip01 L Finger21");			
+	mAvatarId[L_MIDDLE_MID]		= mAvatar.findByName("Bip01 L Finger22");			
+	mAvatarId[L_MIDDLE_OUT]		= mAvatar.findByName("Bip01 L Finger2Nub");			
+
+	mAvatarId[L_RING_BASE]		= mAvatar.findByName("Bip01 L Finger3");			
+	mAvatarId[L_RING_IN]		= mAvatar.findByName("Bip01 L Finger31");			
+	mAvatarId[L_RING_MID]		= mAvatar.findByName("Bip01 L Finger32");			
+	mAvatarId[L_RING_OUT]		= mAvatar.findByName("Bip01 L Finger3Nub");			
+
+	mAvatarId[L_PINKY_BASE]		= mAvatar.findByName("Bip01 L Finger4");
+	mAvatarId[L_PINKY_IN]		= mAvatar.findByName("Bip01 L Finger41");			
+	mAvatarId[L_PINKY_MID]		= mAvatar.findByName("Bip01 L Finger42");			
+	mAvatarId[L_PINKY_OUT]		= mAvatar.findByName("Bip01 L Finger4Nub");	
+
+	//hand_joint_ids = [L_WRIST, R_WRIST];
+	this.hmd=isHMD;
+	
+	// set initialized rotation of joints
+	for (var b = 0; b < JOINT_COUNT; b++)
+		mAvatar.JointSetRotation(mAvatarId[b], 0, 0,0,1);
+
+	this.setPalmsInitialRotations();
+}
+
+function RemoteHandAvatar::setPalmsInitialRotations() {
+	if(this.hmd){
+		this.setPalmsInitialRotationsHMD();
+	} else {
+		this.setPalmsInitialRotationsRegular();
+	}
+}
+
+function RemoteHandAvatar::setPalmsInitialRotationsHMD() {
+	//	initial necessary rotations (set the hand in a "front" position)
+	mAvatar.JointSetRotation(mAvatarId[L_ELBOW], 0, 1,0,0);
+	mAvatar.JointRotate(mAvatarId[L_ELBOW], 90, 0,1,0);
+	mAvatar.JointRotate(mAvatarId[L_ELBOW], 90, 0,0,1);
+
+	mAvatar.JointSetRotation(mAvatarId[R_ELBOW], 0, 1,0,0);
+	mAvatar.JointRotate(mAvatarId[R_ELBOW], -90, 0,1,0);
+	mAvatar.JointRotate(mAvatarId[R_ELBOW], 90, 0,0,1);
+}
+
+function RemoteHandAvatar::setPalmsInitialRotationsRegular() {
+	//	initial necessary rotations (set the hand in a "front" position)
+	mAvatar.JointSetRotation(mAvatarId[L_ELBOW], 0, 1,0,0);
+	mAvatar.JointRotate(mAvatarId[L_ELBOW], 90, 0,1,0);
+	mAvatar.JointRotate(mAvatarId[L_ELBOW], 180, 1,0,0);
+
+	mAvatar.JointSetRotation(mAvatarId[R_ELBOW], 0, 1,0,0);
+	mAvatar.JointRotate(mAvatarId[R_ELBOW], -90, 0,1,0);
+	mAvatar.JointRotate(mAvatarId[R_ELBOW], 180, 1,0,0);
+}
+
+function RemoteHandAvatar::updateJoints(pos, rot){
+	var axisAngle = vector(4);
+	var quaternion = vector(4);
+	var p = vector(3);
+
+	for(var i=0;i<JOINT_COUNT;i++){
+		//Positions
+		p.x=pos[i*3];
+		p.y=pos[i*3+1];
+		p.z=pos[i*3+2];
+		mAvatar.JointSetPositionABS(this.mAvatarId[i],p);
+		//Rotations
+		quaternion[0] = rot[i*4];
+		quaternion[1] = rot[i*4+1];
+		quaternion[2] = rot[i*4+2];
+		quaternion[3] = rot[i*4+3];		
+		axisAngle = QuaternionToAxisDegrees (quaternion);
+		mAvatar.JointSetRotation(this.mAvatarId[i], axisAngle[3],axisAngle[0],axisAngle[1],axisAngle[2]);
+	}
+}
+
+function RemoteHandAvatar::setHandColor(r,g,b,a) {
+	mat = CVmMaterial();
+	mat.Ambient = [0,0,0,0.5];
+	mat.Diffuse = [0,0,0,0.5];
+	mat.Emission = [r,g,b,a];
+	this.mAvatar.ForceSkinMaterial(mat);
+}
+
+function RemoteHandAvatar::draw(p){
+	if (p != void) {
+		glEnable(GL_BLEND);		
+		mAvatar.Draw(0, VR_NO_SHADING); // .Draw() of CVmAvatar class
+		glDisable(GL_BLEND);
+	}
+	else
+		mAvatar.Draw(0);
+		
+	if (DEBUG) {
+		for (var i=0; i < JOINT_COUNT; i++) {
+			DrawCoord(mAvatar.JointGetPositionABS(mAvatarId[i]),
+				Matrix4ToMatrix3(mAvatar.JointGetRotationMatrixABS(mAvatarId[i])));
+		}
+	}
+}
